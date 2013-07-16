@@ -19,16 +19,16 @@ package org.apache.thrift.maven;
  * under the License.
  */
 
-import com.google.common.collect.ImmutableSet;
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.repository.ArtifactRepository;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.project.MavenProjectHelper;
-import org.codehaus.plexus.util.cli.CommandLineException;
-import org.codehaus.plexus.util.io.RawInputStreamFacade;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Sets.newHashSet;
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+import static java.util.Collections.list;
+import static org.codehaus.plexus.util.FileUtils.cleanDirectory;
+import static org.codehaus.plexus.util.FileUtils.copyStreamToFile;
+import static org.codehaus.plexus.util.FileUtils.getFiles;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -40,17 +40,21 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import static com.google.common.base.Join.join;
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.collect.Sets.newHashSet;
-import static java.lang.String.format;
-import static java.util.Arrays.asList;
-import static java.util.Collections.list;
-import static org.codehaus.plexus.util.FileUtils.cleanDirectory;
-import static org.codehaus.plexus.util.FileUtils.copyStreamToFile;
-import static org.codehaus.plexus.util.FileUtils.getFiles;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.MavenProjectHelper;
+import org.codehaus.plexus.util.cli.CommandLineException;
+import org.codehaus.plexus.util.io.RawInputStreamFacade;
+
+import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableSet;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Abstract Mojo implementation.
@@ -76,6 +80,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      * @readonly
      * @required
      */
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
     protected MavenProject project;
 
     /**
@@ -84,7 +89,8 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      * @component
      * @required
      */
-    protected MavenProjectHelper projectHelper;
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
+protected MavenProjectHelper projectHelper;
 
     /**
      * This is the path to the {@code thrift} executable. By default it will search the {@code $PATH}.
@@ -92,6 +98,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      * @parameter default-value="thrift"
      * @required
      */
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
     private String thriftExecutable;
 
     /**
@@ -101,6 +108,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      *
      * @parameter default-value="java:hashcode"
      */
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
     private String generator;
 
     /**
@@ -115,6 +123,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      * @parameter expression="${project.build.directory}/thrift-dependencies"
      * @required
      */
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
     private File temporaryThriftFileDirectory;
 
     /**
@@ -123,6 +132,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      * @parameter default-value="${localRepository}"
      * @required
      */
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
     private ArtifactRepository localRepository;
 
     /**
@@ -135,6 +145,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
      * @parameter default-value="true"
      * @required
      */
+    @SuppressFBWarnings("NP_UNWRITTEN_FIELD")
     private boolean hashDependentPaths;
 
     /**
@@ -171,13 +182,16 @@ abstract class AbstractThriftMojo extends AbstractMojo {
 
                 if (thriftFiles.isEmpty()) {
                     getLog().info("No thrift files to compile.");
-                } else if (checkStaleness && ((lastModified(thriftFiles) + staleMillis) < lastModified(outputFiles))) {
+                } else if (checkStaleness && lastModified(thriftFiles) + staleMillis < lastModified(outputFiles)) {
                     getLog().info("Skipping compilation because target directory newer than sources.");
                     attachFiles();
                 } else {
                     ImmutableSet<File> derivedThriftPathElements =
                             makeThriftPathFromJars(temporaryThriftFileDirectory, getDependencyArtifactFiles());
-                    outputDirectory.mkdirs();
+
+                    if(!outputDirectory.mkdirs()) {
+                        throw new MojoExecutionException("Could not create directories");
+                    }
 
                     // Quick fix to fix issues with two mvn installs in a row (ie no clean)
                     cleanDirectory(outputDirectory);
@@ -284,24 +298,26 @@ abstract class AbstractThriftMojo extends AbstractMojo {
                     !classpathElementFile.getName().endsWith(".xml")) {
 
                 // create the jar file. the constructor validates.
-                JarFile classpathJar;
-                try {
-                    classpathJar = new JarFile(classpathElementFile);
+                try (JarFile classpathJar = new JarFile(classpathElementFile)) {
+                    for (JarEntry jarEntry : list(classpathJar.entries())) {
+                        final String jarEntryName = jarEntry.getName();
+                        if (jarEntry.getName().endsWith(THRIFT_FILE_SUFFIX)) {
+                            final File uncompressedCopy =
+                                    new File(new File(temporaryThriftFileDirectory,
+                                            truncatePath(classpathJar.getName())), jarEntryName);
+
+                            if (!uncompressedCopy.getParentFile().mkdirs()) {
+                                throw new MojoExecutionException("Could not create folders for " + uncompressedCopy.getParent());
+                            }
+
+                            copyStreamToFile(new RawInputStreamFacade(classpathJar
+                                    .getInputStream(jarEntry)), uncompressedCopy);
+                            thriftDirectories.add(uncompressedCopy.getParentFile());
+                        }
+                    }
                 } catch (IOException e) {
                     throw new IllegalArgumentException(format(
                             "%s was not a readable artifact", classpathElementFile));
-                }
-                for (JarEntry jarEntry : list(classpathJar.entries())) {
-                    final String jarEntryName = jarEntry.getName();
-                    if (jarEntry.getName().endsWith(THRIFT_FILE_SUFFIX)) {
-                        final File uncompressedCopy =
-                                new File(new File(temporaryThriftFileDirectory,
-                                        truncatePath(classpathJar.getName())), jarEntryName);
-                        uncompressedCopy.getParentFile().mkdirs();
-                        copyStreamToFile(new RawInputStreamFacade(classpathJar
-                                .getInputStream(jarEntry)), uncompressedCopy);
-                        thriftDirectories.add(uncompressedCopy.getParentFile());
-                    }
                 }
             } else if (classpathElementFile.isDirectory()) {
                 File[] thriftFiles = classpathElementFile.listFiles(new FilenameFilter() {
@@ -323,7 +339,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
         checkArgument(directory.isDirectory(), "%s is not a directory", directory);
         // TODO(gak): plexus-utils needs generics
         @SuppressWarnings("unchecked")
-        List<File> thriftFilesInDirectory = getFiles(directory, join(",", includes), join(",", excludes));
+        List<File> thriftFilesInDirectory = getFiles(directory, Joiner.on(",").join(includes), Joiner.on(",").join(excludes));
         return ImmutableSet.copyOf(thriftFilesInDirectory);
     }
 
@@ -346,7 +362,7 @@ abstract class AbstractThriftMojo extends AbstractMojo {
 
         if (hashDependentPaths) {
             try {
-                return toHexString(MessageDigest.getInstance("MD5").digest(jarPath.getBytes()));
+                return toHexString(MessageDigest.getInstance("MD5").digest(jarPath.getBytes(Charsets.UTF_8)));
             } catch (NoSuchAlgorithmException e) {
                 throw new MojoExecutionException("Failed to expand dependent jar", e);
             }

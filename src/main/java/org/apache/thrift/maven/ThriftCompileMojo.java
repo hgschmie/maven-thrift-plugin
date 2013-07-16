@@ -19,11 +19,14 @@ package org.apache.thrift.maven;
  * under the License.
  */
 
-import com.google.common.collect.ImmutableList;
-import org.apache.maven.artifact.Artifact;
-
 import java.io.File;
 import java.util.List;
+
+import org.apache.maven.artifact.Artifact;
+
+import com.google.common.collect.ImmutableList;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * This mojo executes the {@code thrift} compiler for generating java sources
@@ -45,6 +48,7 @@ public final class ThriftCompileMojo extends AbstractThriftMojo {
      * @parameter default-value="${basedir}/src/main/thrift"
      * @required
      */
+    @SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "NP_UNWRITTEN_FIELD"})
     private File thriftSourceRoot;
 
     /**
@@ -53,6 +57,7 @@ public final class ThriftCompileMojo extends AbstractThriftMojo {
      * @parameter default-value="${project.build.directory}/generated-sources/thrift"
      * @required
      */
+    @SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "NP_UNWRITTEN_FIELD"})
     private File outputDirectory;
 
     @Override

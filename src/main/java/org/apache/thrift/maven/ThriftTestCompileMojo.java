@@ -20,6 +20,9 @@ package org.apache.thrift.maven;
  */
 
 import com.google.common.collect.ImmutableList;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import org.apache.maven.artifact.Artifact;
 
 import java.io.File;
@@ -38,6 +41,7 @@ public final class ThriftTestCompileMojo extends AbstractThriftMojo {
      * @parameter default-value="${basedir}/src/test/thrift"
      * @required
      */
+    @SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "NP_UNWRITTEN_FIELD"})
     private File thriftTestSourceRoot;
 
     /**
@@ -46,6 +50,7 @@ public final class ThriftTestCompileMojo extends AbstractThriftMojo {
      * @parameter default-value="${project.build.directory}/generated-test-sources/thrift"
      * @required
      */
+    @SuppressFBWarnings({"UWF_UNWRITTEN_FIELD", "NP_UNWRITTEN_FIELD"})
     private File outputDirectory;
 
     @Override

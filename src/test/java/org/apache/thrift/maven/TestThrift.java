@@ -106,7 +106,7 @@ public class TestThrift {
 
         // execute the compile
         final int result = thrift.compile();
-        assertEquals(0, result);
+        assertEquals("could not execute thrift compiler", 0, result);
 
         assertFalse("gen-java directory was not removed", genJavaDir.exists());
         assertTrue("generated java code doesn't exist",
