@@ -298,7 +298,9 @@ protected MavenProjectHelper projectHelper;
                     !classpathElementFile.getName().endsWith(".xml")) {
 
                 // create the jar file. the constructor validates.
-                try (JarFile classpathJar = new JarFile(classpathElementFile)) {
+                JarFile classpathJar = null;
+                try {
+                    classpathJar = new JarFile(classpathElementFile);
                     for (JarEntry jarEntry : list(classpathJar.entries())) {
                         final String jarEntryName = jarEntry.getName();
                         if (jarEntry.getName().endsWith(THRIFT_FILE_SUFFIX)) {
@@ -318,6 +320,11 @@ protected MavenProjectHelper projectHelper;
                 } catch (IOException e) {
                     throw new IllegalArgumentException(format(
                             "%s was not a readable artifact", classpathElementFile));
+                }
+                finally {
+                    if (classpathJar != null) {
+                        classpathJar.close();
+                    }
                 }
             } else if (classpathElementFile.isDirectory()) {
                 File[] thriftFiles = classpathElementFile.listFiles(new FilenameFilter() {
