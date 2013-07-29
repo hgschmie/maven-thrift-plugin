@@ -190,7 +190,12 @@ protected MavenProjectHelper projectHelper;
                             makeThriftPathFromJars(temporaryThriftFileDirectory, getDependencyArtifactFiles());
 
                     if(!outputDirectory.mkdirs()) {
-                        throw new MojoExecutionException("Could not create directories");
+                        if (!outputDirectory.exists()) {
+                            throw new MojoExecutionException("Could not create directories: " + outputDirectory.getAbsolutePath() + " does not exist!");
+                        }
+                        if (!outputDirectory.isDirectory()) {
+                            throw new MojoExecutionException("Could not create directories: " + outputDirectory.getAbsolutePath() + " exists but is not a directory!");
+                        }
                     }
 
                     // Quick fix to fix issues with two mvn installs in a row (ie no clean)
@@ -308,8 +313,14 @@ protected MavenProjectHelper projectHelper;
                                     new File(new File(temporaryThriftFileDirectory,
                                             truncatePath(classpathJar.getName())), jarEntryName);
 
-                            if (!uncompressedCopy.getParentFile().mkdirs()) {
-                                throw new MojoExecutionException("Could not create folders for " + uncompressedCopy.getParent());
+                            File outputDirectory = uncompressedCopy.getParentFile();
+                            if(!outputDirectory.mkdirs()) {
+                                if (!outputDirectory.exists()) {
+                                    throw new MojoExecutionException("Could not create directories: " + outputDirectory.getAbsolutePath() + " does not exist!");
+                                }
+                                if (!outputDirectory.isDirectory()) {
+                                    throw new MojoExecutionException("Could not create directories: " + outputDirectory.getAbsolutePath() + " exists but is not a directory!");
+                                }
                             }
 
                             copyStreamToFile(new RawInputStreamFacade(classpathJar
